@@ -1,0 +1,99 @@
+﻿@page "/uploadssr"
+@using BlazorUploadSSR.Entities
+
+<div>
+    <h3>Upload Static Server</h3>
+    <p>Blazor Server-side Rendering</p>
+</div>
+
+@if (Mensagem.Length > 0)
+{
+    <p class="alert alert-secondary" role="alert">@Mensagem</p>
+}
+
+<EditForm Model="@Arquivo" OnValidSubmit="@EnviarArquivos" FormName="FormUpload" 
+    method="post" enctype="multipart/form-data">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <InputText class="form-control mb-4" placeholder="Titulo" @bind-Value="@Arquivo.Titulo" />
+    <InputText class="form-control mb-4" placeholder="Descricao" @bind-Value="@Arquivo.Descricao" />
+    <InputFile class="form-control mb-4" placeholder="Anexos" name="Arquivo.Anexos" multiple />
+    <button class="btn btn-primary" type="submit">Enviar Arquivos</button>
+</EditForm>
+
+@code {
+    [SupplyParameterFromForm(FormName = "FormUpload")]
+    private ArquivoUpload Arquivo { get; set; } = new();
+
+    private string Mensagem { get; set; } = String.Empty;
+    private long tamanhoMaximoArquivo = 1 * 1024 * 1024; //1 MB;
+
+    private async Task EnviarArquivos()
+    {
+        var extensoesPermitidas = new string[] { ".png", ".jpg", ".jpeg", ".gif" };
+        Mensagem = "";
+
+        if(Arquivo.Anexos.Count <=0 )
+        {
+            Mensagem = "Nenhum arquivo selecionado !!!";
+            return;
+        }
+
+        try
+        {
+            foreach (var arquivo in Arquivo.Anexos)
+            {
+                string nomeArquivo = WebUtility.HtmlEncode(arquivo.FileName);
+                var arquivoExtensao = Path.GetExtension(nomeArquivo);
+                var nomeArquivoSeguro = $"{Guid.NewGuid()}{arquivoExtensao}";
+
+                if (!extensoesPermitidas.Contains(arquivoExtensao))
+                {
+                    Mensagem = $"Arquivo: {nomeArquivo}, é um tipo de Arquivo não permitido";
+                    return;
+                }
+
+                if (arquivo.Length > tamanhoMaximoArquivo)
+                {
+                    Mensagem = $"Arquivo: {nomeArquivo} excede o tamanho máximo permitido.";
+                    return;
+                }
+
+                var diretorioUpload = Path.Combine(env.WebRootPath, "uploads");
+
+                if (!Directory.Exists(diretorioUpload))
+                {
+                    Directory.CreateDirectory(diretorioUpload);
+                }
+
+                // salva o arquivo localmente
+                var path = Path.Combine(diretorioUpload, nomeArquivoSeguro);
+                await using FileStream fs = new(path, FileMode.Create);
+                await arquivo.CopyToAsync(fs);
+
+                // salva imagem no banco de dados
+                var arquivoDados = new ArquivoDatabase();
+                arquivoDados.NomeArquivoUpload = nomeArquivoSeguro;
+                await _repository.UploadArquivoDb(arquivoDados);
+            }
+            Arquivo = new();
+            Mensagem = "Arquivo(s) enviado(s) !!!!";
+        }
+        catch (Exception e)
+        {
+            Mensagem = "Error: " + e.Message;
+        }
+    }
+
+    private class ArquivoUpload
+    {
+        [Required(ErrorMessage ="O título é obrigatório")]
+        public string Titulo { get; set; } = String.Empty;
+
+        [Required(ErrorMessage = "A descrição é obrigatória")]
+        public string Descricao { get; set; } = String.Empty;
+
+        public IFormFileCollection? Anexos { get; set; }
+    }
+}
+

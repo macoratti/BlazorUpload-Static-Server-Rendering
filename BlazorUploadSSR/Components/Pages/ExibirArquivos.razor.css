@@ -1,0 +1,16 @@
+﻿﻿.file-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between; /* Distribui os itens em duas colunas */
+}
+
+.file-item {
+    margin: 5px;
+    text-align: center;
+}
+
+img {
+    max-width: 120px; /* Tamanho máximo da imagem */
+    max-height: 120px;
+    border: 1px solid #ccc;
+}
